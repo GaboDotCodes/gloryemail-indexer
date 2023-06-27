@@ -68,33 +68,33 @@ func bulkEmailZincPost(amountEmails int, bulk BulkDocuments, wg *sync.WaitGroup,
 }
 
 func getEmailMap(fileContent string) map[string]interface{} {
-	possibleKeys := map[string]bool{
-		"Body":                      true,
-		"Content-Transfer-Encoding": true,
-		"Content-Type":              true,
-		"Date":                      true,
-		"From":                      true,
-		"Message-ID":                true,
-		"Mime-Version":              true,
-		"Subject":                   true,
-		"To":                        true,
-		"X-FileName":                true,
-		"X-Folder":                  true,
-		"X-From":                    true,
-		"X-Origin":                  true,
-		"X-To":                      true,
-		"X-bcc":                     true,
-		"X-cc":                      true,
-		"Bcc":                       true,
-		"Cc":                        true,
+	possibleKeys := map[string]string{
+		"Body":                      "body",
+		"Content-Transfer-Encoding": "contentTransferEncoding",
+		"Content-Type":              "contentType",
+		"Date":                      "date",
+		"From":                      "from",
+		"Message-ID":                "messageID",
+		"Mime-Version":              "mimeVersion",
+		"Subject":                   "subject",
+		"To":                        "to",
+		"X-FileName":                "xfileName",
+		"X-Folder":                  "xfolder",
+		"X-From":                    "xfrom",
+		"X-Origin":                  "xorigin",
+		"X-To":                      "xto",
+		"X-bcc":                     "xbcc",
+		"X-cc":                      "xcc",
+		"Bcc":                       "bcc",
+		"Cc":                        "cc",
 	}
 	keysToSplit := map[string]bool{
-		"To":    true,
-		"X-To":  true,
-		"X-bcc": true,
-		"X-cc":  true,
-		"Bcc":   true,
-		"Cc":    true,
+		"to":   true,
+		"xto":  true,
+		"xbcc": true,
+		"xcc":  true,
+		"bcc":  true,
+		"cc":   true,
 	}
 	dataMap := make(map[string]interface{})
 	var lastKey string
@@ -105,18 +105,20 @@ func getEmailMap(fileContent string) map[string]interface{} {
 			colonIndex := strings.Index(line, ":")
 			if colonIndex != -1 {
 				key := strings.TrimSpace(line[:colonIndex])
-				if possibleKeys[key] {
+
+				if val, ok := possibleKeys[key]; ok {
 					value := strings.TrimSpace(line[colonIndex+1:])
-					dataMap[key] = value
+					dataMap[val] = value
 					lastKey = key
 				} else {
 					dataMap[lastKey] = fmt.Sprintf("%v%v", dataMap[lastKey], line)
 				}
+
 			} else {
 				dataMap[lastKey] = fmt.Sprintf("%v%v", dataMap[lastKey], line)
 			}
 		} else {
-			key := "Body"
+			key := "body"
 			value := strings.TrimSpace(strings.Join(lines[indexLines:], "\n"))
 			dataMap[key] = value
 			break
@@ -128,7 +130,7 @@ func getEmailMap(fileContent string) map[string]interface{} {
 				dataMap[key] = splitValue(str)
 			}
 		}
-		if key == "Date" {
+		if key == "date" {
 			if str, ok := value.(string); ok {
 				dataMap[key] = transformDate(str)
 			}
