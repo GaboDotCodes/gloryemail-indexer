@@ -11,11 +11,31 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 type BulkDocuments struct {
 	Index   string
-	Records []map[string]string
+	Records []map[string]interface{}
+}
+
+func transformDate(dateStr string) string {
+	inputFormat := "Mon, 2 Jan 2006 15:04:05 -0700 (MST)"
+	t, err := time.Parse(inputFormat, dateStr)
+	if err != nil {
+		return "2006-01-02T15:04:05Z07:00"
+	}
+	return t.Format(time.RFC3339)
+}
+
+func splitValue(value string) []string {
+	values := []string{}
+	if strings.Contains(value, ">") {
+		values = strings.SplitAfter(value, ">,")
+	} else {
+		values = strings.Split(value, ",")
+	}
+	return values
 }
 
 func bulkEmailZincPost(amountEmails int, bulk BulkDocuments, wg *sync.WaitGroup, waitChan *chan int) {
@@ -45,10 +65,9 @@ func bulkEmailZincPost(amountEmails int, bulk BulkDocuments, wg *sync.WaitGroup,
 		fmt.Println(err)
 	}
 	fmt.Println("WASM :: ", amountEmails, "- RESPONSE: ", string(b))
-
 }
 
-func getEmailMap(fileContent string) map[string]string {
+func getEmailMap(fileContent string) map[string]interface{} {
 	possibleKeys := map[string]bool{
 		"Body":                      true,
 		"Content-Transfer-Encoding": true,
@@ -69,7 +88,15 @@ func getEmailMap(fileContent string) map[string]string {
 		"Bcc":                       true,
 		"Cc":                        true,
 	}
-	dataMap := make(map[string]string)
+	keysToSplit := map[string]bool{
+		"To":    true,
+		"X-To":  true,
+		"X-bcc": true,
+		"X-cc":  true,
+		"Bcc":   true,
+		"Cc":    true,
+	}
+	dataMap := make(map[string]interface{})
 	var lastKey string
 	lines := strings.Split(fileContent, "\n")
 	for indexLines, line := range lines {
@@ -80,11 +107,16 @@ func getEmailMap(fileContent string) map[string]string {
 				key := strings.TrimSpace(line[:colonIndex])
 				if possibleKeys[key] {
 					value := strings.TrimSpace(line[colonIndex+1:])
+					if key == "Date" {
+						value = transformDate(value)
+					}
 					dataMap[key] = value
 					lastKey = key
+				} else {
+					dataMap[lastKey] = fmt.Sprintf("%v%v", dataMap[lastKey], line)
 				}
 			} else {
-				dataMap[lastKey] += line
+				dataMap[lastKey] = fmt.Sprintf("%v%v", dataMap[lastKey], line)
 			}
 		} else {
 			key := "Body"
@@ -93,6 +125,14 @@ func getEmailMap(fileContent string) map[string]string {
 			break
 		}
 	}
+	for key, value := range dataMap {
+		if keysToSplit[key] {
+			if str, ok := value.(string); ok {
+				dataMap[key] = splitValue(str)
+			}
+		}
+	}
+
 	return dataMap
 }
 
@@ -110,7 +150,7 @@ func processFile(file []byte) {
 	const MAX_GO_ROUTINES = 3
 	waitChan := make(chan int, MAX_GO_ROUTINES)
 	for {
-		_, err := tr.Next()
+		fileHeader, err := tr.Next()
 		if err == io.EOF {
 			break
 		}
@@ -126,12 +166,13 @@ func processFile(file []byte) {
 			waitChan <- 1
 			fmt.Println("WASM :: ", filesCounter, "- REQUESTED")
 			go bulkEmailZincPost(filesCounter, bulkBody, &wg, &waitChan)
-			bulkBody.Records = []map[string]string{}
+			bulkBody.Records = []map[string]interface{}{}
 			i = 0
 		}
 
 		if strings.HasPrefix(fileContent, "Message-ID:") {
 			emailMap := getEmailMap(fileContent)
+			emailMap["file"] = fileHeader.Name
 			bulkBody.Records = append(bulkBody.Records, emailMap)
 			i++
 			filesCounter++
