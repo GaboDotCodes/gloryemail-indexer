@@ -23,7 +23,7 @@ func transformDate(dateStr string) string {
 	inputFormat := "Mon, 2 Jan 2006 15:04:05 -0700 (MST)"
 	t, err := time.Parse(inputFormat, dateStr)
 	if err != nil {
-		return "2006-01-02T15:04:05Z07:00"
+		return "2006-01-02T15:04:05-07:00"
 	}
 	return t.Format(time.RFC3339)
 }
@@ -107,9 +107,6 @@ func getEmailMap(fileContent string) map[string]interface{} {
 				key := strings.TrimSpace(line[:colonIndex])
 				if possibleKeys[key] {
 					value := strings.TrimSpace(line[colonIndex+1:])
-					if key == "Date" {
-						value = transformDate(value)
-					}
 					dataMap[key] = value
 					lastKey = key
 				} else {
@@ -129,6 +126,11 @@ func getEmailMap(fileContent string) map[string]interface{} {
 		if keysToSplit[key] {
 			if str, ok := value.(string); ok {
 				dataMap[key] = splitValue(str)
+			}
+		}
+		if key == "Date" {
+			if str, ok := value.(string); ok {
+				dataMap[key] = transformDate(str)
 			}
 		}
 	}
