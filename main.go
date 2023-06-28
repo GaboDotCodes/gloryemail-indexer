@@ -104,12 +104,12 @@ func getEmailMap(fileContent string) map[string]interface{} {
 		if len(line) != 0 {
 			colonIndex := strings.Index(line, ":")
 			if colonIndex != -1 {
-				key := strings.TrimSpace(line[:colonIndex])
+				keyOnFile := strings.TrimSpace(line[:colonIndex])
 
-				if val, ok := possibleKeys[key]; ok {
+				if keyValJson, ok := possibleKeys[keyOnFile]; ok {
 					value := strings.TrimSpace(line[colonIndex+1:])
-					dataMap[val] = value
-					lastKey = key
+					dataMap[keyValJson] = value
+					lastKey = keyValJson
 				} else {
 					dataMap[lastKey] = fmt.Sprintf("%v%v", dataMap[lastKey], line)
 				}
